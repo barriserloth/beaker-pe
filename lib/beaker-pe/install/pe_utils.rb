@@ -798,6 +798,20 @@ module Beaker
           end
 
           install_hosts.each do |host|
+            # Set up custom console certificates for legacy split installations (legacy = master/console/puppetdb all on separate hosts)
+            # See PE-27485 for more details, automatically transferring the certs during install (with Puppet) in this configuration is a no-go
+            if host['roles'].include? 'dashboard'
+              master_host = nil
+              install_hosts.each do |host2|
+                master_host = host2 if host2['roles'].include? 'master'
+              end
+              console_certs_dir = '/opt/puppetlabs/server/data/console-services/certs'
+              console_cert_contents = on master_host, "cat #{console_certs_dir}/console-cert.cert.pem"
+              console_key_contents = on master_host, "cat #{console_certs_dir}/console-cert.private_key.pem"
+
+              create_remote_file(host, "#{console_certs_dir}/console-cert.cert.pem", console_cert_contents)
+              create_remote_file(host, "#{console_certs_dir}/console-cert.private_key.pem", console_key_contents)
+            end
 
             if agent_only_check_needed && hosts_agent_only.include?(host) || install_via_msi?(host)
               host['type'] = 'aio'
